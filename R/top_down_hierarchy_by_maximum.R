@@ -13,29 +13,45 @@
 #' top_down_hierarchy_by_maximum(tbl_SBI_count = tbl_SBI_count, threshold=10000)
 top_down_hierarchy_by_maximum <- function(tbl_SBI_count = tbl_SBI_count, threshold=10000){
 
+# run this function first because it is not exported from the graydon package
+    get_incoming_vertice_names <- function(graph, name_vertex, order = 1){
+
+      # create a small subnetwork of the vertx_hierarchy and its child vertices
+      vertx_incoming <- igraph::ego(graph = graph,
+                                    order = order,
+                                    nodes = igraph::V(graph)[name_vertex],
+                                    mode = "in")[[1]]
+      vertx_incoming <- igraph::difference(vertx_incoming,
+                                           igraph::V(graph)[name_vertex])
+      idx_incoming <- names(vertx_incoming)
+      rm(vertx_incoming)
+
+      return(idx_incoming)
+    }
+
 # create graph with SBI info
     names(tbl_SBI_count)[which(names(tbl_SBI_count) == "code_SBI")] <- "code"
     names(tbl_SBI_count)[which(names(tbl_SBI_count) == "code_SBI_parent")] <- "code_parent"
     names(tbl_SBI_count)[which(names(tbl_SBI_count) == "hierarchy_layer")] <- "layer_no"
     names(tbl_SBI_count)[which(names(tbl_SBI_count) == "qty_companies")] <- "attribute_no"
 
-    ## Create vertices
+    ## create vertices
     vertices <- with(tbl_SBI_count, unique(c(code, code_parent)))
     tbl_vertices <- data.frame(code = vertices, stringsAsFactors = FALSE) %>%
       dplyr::left_join(tbl_SBI_count, by = "code")
 
-    ## Create edges
+    ## create edges
     tbl_edges <- tbl_SBI_count %>% dplyr::select(code, code_parent, tidyselect::everything())
 
-    ## Create graph
+    ## create graph
     graph_hierarchy <- igraph::graph_from_data_frame(d = tbl_edges,
                                                      vertices = tbl_vertices,
                                                      directed = TRUE)
 
-    ## Add root/layer information
+    ## add root/layer information
     graph_hierarchy <- graydon.package::vertices_add_distance_to_root(graph_hierarchy)
 
-    ## Add the key attribute related to qty_companies in the graph
+    ## add the key attribute related to qty_companies in the graph
     graph_hierarchy <- graydon.package::propagate_hierarchy_value(graph = graph_hierarchy,
                                                  name_attribute = "attribute_no",
                                                  name_propagate = "qty_attribute_cum",
@@ -64,16 +80,16 @@ top_down_hierarchy_by_maximum <- function(tbl_SBI_count = tbl_SBI_count, thresho
       graph_hierarchy<- igraph::delete.vertices(graph = graph_hierarchy,
                                                 v = igraph::V(graph_hierarchy)[idx_split])
 
-      ### Get max_distance layers of incoming vertices
-      layer <- graydon.package::get_incoming_vertice_names(graph_hierarchy, idx_keep, order = max_distance)
+      ### get max_distance layers of incoming vertices
+      layer <- get_incoming_vertice_names(graph_hierarchy, idx_keep, order = max_distance)
 
-      ### Remove all edges with nodes lower than the selected level
+      ### remove all edges with nodes lower than the selected level
       edges_below_degree <- unlist(igraph::incident_edges(graph_hierarchy,
                                                           v = igraph::V(graph_hierarchy)[layer],
                                                           mode = "out"))
       graph_hierarchy <- igraph::delete.edges(graph_hierarchy, edges = edges_below_degree)
 
-      ### Reconnect vertices
+      ### reconnect vertices
       new_edges <- as.vector(rbind(layer, rep(idx_keep, length(layer))))  # directly connect the name with each below degree node
       graph_hierarchy<- igraph::add.edges(graph_hierarchy, edges = new_edges)
 
