@@ -18,11 +18,11 @@ Imports:
     magrittr,
     readr,
     rgdal,
-    rgeos,
     stringr,
     tmap,
     hyphenatr
 Suggests: knitr,
+    rgeos,
     rmarkdown,
     testthat
 VignetteBuilder: knitr
